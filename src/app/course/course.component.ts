@@ -20,7 +20,7 @@ import {
   concatAll,
   shareReplay,
 } from 'rxjs/operators';
-import { merge, fromEvent, Observable, concat } from 'rxjs';
+import { merge, fromEvent, Observable, concat, forkJoin } from 'rxjs';
 import { Lesson } from '../model/lesson';
 import { createHttpObservable } from '../common/util';
 
@@ -43,20 +43,29 @@ export class CourseComponent implements OnInit, AfterViewInit {
 
     this.course$ = createHttpObservable(`api/courses/${this.courseId}`)
 
+    const lesson$ = this.loadLessons();
+
+    forkJoin(this.course$, lesson$)
+      .pipe(
+        tap(([course, lesson]) => {
+          console.log('course', course);
+          console.log('lesson', lesson)
+        })
+      )
+      .subscribe()
 
   }
 
   ngAfterViewInit() {
-    const searchLessons$ = fromEvent<any>(this.input.nativeElement, 'keyup')
-      .pipe(
-        map(event => event.target.value),
-        debounceTime(400),
-        distinctUntilChanged(),
-        switchMap(search => this.loadLessons(search))
-      )
-    
-    const initialLessons$ = this.loadLessons();
-    this.lessons$ = concat(initialLessons$, searchLessons$)
+
+    this.lessons$ = fromEvent<any>(this.input.nativeElement, 'keyup')
+    .pipe(
+      map(event => event.target.value),
+      startWith(''),
+      debounceTime(400),
+      distinctUntilChanged(),
+      switchMap(search => this.loadLessons(search))
+    )
   }
 
   loadLessons(search = ''): Observable<Lesson[]> {
